@@ -2,6 +2,7 @@
 #include <SDL2/SDL_video.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 
 #define CheckReturnValue(check)                                                \
   if (check) {                                                                 \
@@ -44,6 +45,15 @@ viewer_t *viewer_init(char *filename) {
   return viewer;
 }
 
+struct timespec file_get_mtim(char *filename) {
+  struct stat file_status;
+  if (stat(filename, &file_status) != 0) {
+    perror("stat");
+    exit(EXIT_FAILURE);
+  }
+  return file_status.st_mtim;
+}
+
 void viewer_load_image(viewer_t *viewer, char *filename) {
   viewer_free_image(viewer);
   viewer->image = image_read(filename);
@@ -52,12 +62,14 @@ void viewer_load_image(viewer_t *viewer, char *filename) {
     exit(EXIT_FAILURE);
   }
   viewer->filename = filename;
+  viewer->mtim = file_get_mtim(filename);
 
   viewer->pixels = malloc(sizeof(SDL_Rect) * viewer->image->num_pixels);
   if (viewer->pixels == NULL) {
     perror("malloc");
     exit(EXIT_FAILURE);
   }
+  viewer_compute_pixel_positions(viewer);
 }
 
 void viewer_reload_image(viewer_t *viewer) {
@@ -144,6 +156,15 @@ void viewer_handle_events(viewer_t *viewer) {
   }
 }
 
+void viewer_image_modified(viewer_t *viewer) {
+  struct timespec image_status = file_get_mtim(viewer->filename);
+
+  if (viewer->mtim.tv_sec != image_status.tv_sec) {
+    viewer_reload_image(viewer);
+    viewer_render_image(viewer);
+  }
+}
+
 int main(int argc, char *argv[]) {
   if (argc != 2) {
     fprintf(stderr, "usage: viewer <filename>\n");
@@ -158,6 +179,7 @@ int main(int argc, char *argv[]) {
 
   while (viewer->is_running) {
     viewer_handle_events(viewer);
+    viewer_image_modified(viewer);
     SDL_Delay(30);
   }
 
