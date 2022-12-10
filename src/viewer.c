@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #define CheckReturnValue(check)                                                \
   if (check) {                                                                 \
@@ -157,6 +158,8 @@ void viewer_handle_events(viewer_t *viewer) {
 }
 
 void viewer_image_modified(viewer_t *viewer) {
+  if (access(viewer->filename, F_OK) != 0)
+    return;
   struct timespec image_status = file_get_mtim(viewer->filename);
 
   if (viewer->mtim.tv_sec != image_status.tv_sec) {
